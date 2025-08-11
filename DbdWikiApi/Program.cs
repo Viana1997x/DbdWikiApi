@@ -1,12 +1,28 @@
-using DbdWikiApi.Services;
+using DbdWikiApi.Interfaces;
+using DbdWikiApi.Models;
+using DbdWikiApi.Services; // <-- Adicionado para encontrar o FileService
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Microsoft.OpenApi.Models;
+using MongoDB.Bson.Serialization;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configurações do Banco de Dados
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: MyAllowSpecificOrigins,
+                      policy =>
+                      {
+                          policy.WithOrigins("http://localhost:5173")
+                                .AllowAnyHeader()
+                                .AllowAnyMethod();
+                      });
+});
+
+
 builder.Services.Configure<DbdWikiDatabaseSettings>(
     builder.Configuration.GetSection("DbdWikiDatabaseSettings"));
 
@@ -14,23 +30,9 @@ builder.Services.Configure<DbdWikiDatabaseSettings>(
 builder.Services.AddSingleton<DbdWikiService>();
 builder.Services.AddScoped<UserService>();
 
-// Serviço de CORS
-var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(name: myAllowSpecificOrigins,
-                      policy =>
-                      {
-                          policy.AllowAnyOrigin()
-                                .AllowAnyHeader()
-                                .AllowAnyMethod();
-                      });
-});
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Configuração do JWT e Swagger (sem alterações)
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -88,27 +90,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// --- ORDEM DO PIPELINE CORRIGIDA E ROBUSTA ---
-
-// 1. Redireciona para HTTPS
 app.UseHttpsRedirection();
-
-// --- ADICIONE ESTA LINHA ---
-// Habilita o uso de arquivos estáticos, como imagens salvas na pasta wwwroot
 app.UseStaticFiles();
-// -------------------------
-
-// 2. ADICIONADO: Garante que a rota seja identificada
 app.UseRouting();
-
-// 3. Aplica a política de CORS
-app.UseCors(myAllowSpecificOrigins);
-
-// 4. Aplica autenticação e autorização
+app.UseCors(MyAllowSpecificOrigins);
 app.UseAuthentication();
 app.UseAuthorization();
-
-// 5. Mapeia os controllers para os endpoints
 app.MapControllers();
 
 app.Run();

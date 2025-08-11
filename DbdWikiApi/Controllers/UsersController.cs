@@ -1,5 +1,6 @@
 ﻿using DbdWikiApi.Models;
 using DbdWikiApi.Services;
+// Não precisamos mais do IFileService, então o using foi removido.
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -13,6 +14,7 @@ public class UsersController : ControllerBase
 {
     private readonly UserService _userService;
 
+    // Construtor corrigido: Apenas um construtor, sem IFileService ou IWebHostEnvironment
     public UsersController(UserService userService)
     {
         _userService = userService;
@@ -44,6 +46,7 @@ public class UsersController : ControllerBase
         var user = await _userService.GetByIdAsync(userId);
         if (user == null) return NotFound();
 
+        // Corrigido: Usa a nova propriedade ProfilePictureBase64
         var response = new UserProfileResponseDto
         {
             Id = user.Id!,
@@ -53,7 +56,7 @@ public class UsersController : ControllerBase
             Role = user.Role,
             CreatedAt = user.CreatedAt,
             Bio = user.Bio,
-            ProfilePictureUrl = user.ProfilePictureUrl,
+            ProfilePictureBase64 = user.ProfilePictureBase64, // Corrigido
             FavoriteKillers = user.FavoriteKillers,
             FavoriteSurvivors = user.FavoriteSurvivors,
             Comments = user.Comments
@@ -105,17 +108,6 @@ public class UsersController : ControllerBase
         return Ok(new { Message = message });
     }
 
-    [HttpPut("me/profile-picture")]
-    [Authorize]
-    public async Task<IActionResult> UpdateProfilePicture([FromBody] UpdateProfilePictureDto dto)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null) return Unauthorized();
-        var (success, message) = await _userService.UpdateProfilePictureAsync(userId, dto.Url);
-        if (!success) return BadRequest(new { Message = message });
-        return Ok(new { Message = message });
-    }
-
     [HttpDelete("me")]
     [Authorize]
     public async Task<IActionResult> DeleteCurrentUser()
@@ -127,7 +119,6 @@ public class UsersController : ControllerBase
         return Ok(new { Message = message });
     }
 
-    // Endpoint para upload de foto de perfil
     [HttpPost("me/profile-picture")]
     [Authorize]
     public async Task<IActionResult> UploadProfilePicture(IFormFile file)
@@ -138,26 +129,19 @@ public class UsersController : ControllerBase
         if (file == null || file.Length == 0) return BadRequest("Nenhum arquivo enviado.");
         if (file.Length > 9 * 1024 * 1024) return BadRequest("O arquivo excede o tamanho máximo de 9MB.");
 
-        var uploadsFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "profiles");
-        if (!Directory.Exists(uploadsFolderPath)) Directory.CreateDirectory(uploadsFolderPath);
+        using var memoryStream = new MemoryStream();
+        await file.CopyToAsync(memoryStream);
+        var fileBytes = memoryStream.ToArray();
 
-        var fileName = $"{userId}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var filePath = Path.Combine(uploadsFolderPath, fileName);
+        var base64String = Convert.ToBase64String(fileBytes);
+        var fullBase64String = $"data:{file.ContentType};base64,{base64String}";
 
-        using (var stream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
-
-        var fileUrl = $"{Request.Scheme}://{Request.Host}/images/profiles/{fileName}";
-
-        var (success, message) = await _userService.UpdateProfilePictureAsync(userId, fileUrl);
+        var (success, message) = await _userService.UpdateProfilePictureAsync(userId, fullBase64String);
         if (!success) return BadRequest(new { Message = message });
 
-        return Ok(new { Message = message, Url = fileUrl });
+        return Ok(new { Message = "Imagem de perfil atualizada com sucesso.", ProfilePictureBase64 = fullBase64String });
     }
 
-    // Endpoint para atualizar os favoritos
     [HttpPut("me/favorites")]
     [Authorize]
     public async Task<IActionResult> UpdateFavorites([FromBody] UpdateFavoritesDto dto)
@@ -171,11 +155,8 @@ public class UsersController : ControllerBase
         return Ok(new { Message = message });
     }
 
-    /// <summary>
-    /// [Admin] Rota de exemplo que só pode ser acessada por administradores.
-    /// </summary>
     [HttpGet("admin/test")]
-    [Authorize(Roles = "admin")] // Só usuários com a role "admin" podem acessar
+    [Authorize(Roles = "admin")]
     public IActionResult AdminOnlyRoute()
     {
         return Ok(new { Message = "Bem-vindo, Administrador!" });

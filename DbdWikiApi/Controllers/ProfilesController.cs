@@ -18,13 +18,6 @@ namespace DbdWikiApi.Controllers
             _userService = userService;
         }
 
-        /// <summary>
-        /// Busca um perfil de usuário público pelo nome de usuário.
-        /// </summary>
-        /// <param name="username">O nome de usuário do perfil a ser buscado.</param>
-        /// <returns>O perfil público do usuário.</returns>
-        /// <response code="200">Retorna o perfil do usuário encontrado.</response>
-        /// <response code="404">Se o perfil não for encontrado ou estiver inativo.</response>
         [HttpGet("{username}")]
         [ProducesResponseType(typeof(UserProfileResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -42,11 +35,11 @@ namespace DbdWikiApi.Controllers
                 Id = user.Id!,
                 Username = user.Username,
                 DisplayName = user.DisplayName,
-                Email = user.Email, // Considere se o e-mail deve ser público
+                Email = user.Email,
                 Role = user.Role,
                 CreatedAt = user.CreatedAt,
                 Bio = user.Bio,
-                ProfilePictureUrl = user.ProfilePictureUrl,
+                ProfilePictureBase64 = user.ProfilePictureBase64, // <-- CORRIGIDO AQUI
                 FavoriteKillers = user.FavoriteKillers,
                 FavoriteSurvivors = user.FavoriteSurvivors,
                 Comments = user.Comments
@@ -55,18 +48,12 @@ namespace DbdWikiApi.Controllers
             return Ok(response);
         }
 
-        /// <summary>
-        /// Adiciona um comentário ao perfil de um usuário.
-        /// </summary>
-        /// <param name="username">O nome de usuário do perfil a ser comentado.</param>
-        /// <param name="dto">O objeto contendo o texto do comentário.</param>
-        /// <returns>Uma mensagem de sucesso ou erro.</returns>
         [HttpPost("{username}/comment")]
         [Authorize]
         public async Task<IActionResult> PostComment(string username, [FromBody] CommentDto dto)
         {
             var commenterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var commenterUser = await _userService.GetByIdAsync(commenterId!); // Busca o usuário para pegar o DisplayName
+            var commenterUser = await _userService.GetByIdAsync(commenterId!);
             if (commenterUser == null) return Unauthorized();
 
             var profileOwner = await _userService.GetByUsernameAsync(username);
@@ -75,7 +62,7 @@ namespace DbdWikiApi.Controllers
             var comment = new ProfileComment
             {
                 CommenterId = commenterId!,
-                CommenterDisplayName = commenterUser.DisplayName, // Usa o DisplayName do comentador
+                CommenterDisplayName = commenterUser.DisplayName,
                 Text = dto.Text,
                 CreatedAt = DateTime.UtcNow
             };
@@ -86,12 +73,6 @@ namespace DbdWikiApi.Controllers
             return Ok(new { Message = message });
         }
 
-        /// <summary>
-        /// Avalia o perfil de um usuário.
-        /// </summary>
-        /// <param name="username">O nome de usuário do perfil a ser avaliado.</param>
-        /// <param name="dto">O objeto contendo a pontuação.</param>
-        /// <returns>Uma mensagem de sucesso ou erro.</returns>
         [HttpPost("{username}/rate")]
         [Authorize]
         public async Task<IActionResult> PostRating(string username, [FromBody] RatingDto dto)

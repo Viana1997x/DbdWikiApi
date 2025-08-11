@@ -30,11 +30,18 @@ public class User
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // --- NOVOS CAMPOS PARA O PERFIL ---
     [BsonElement("bio")]
     public string Bio { get; set; } = string.Empty;
 
+    // O novo campo que queremos usar.
+    [BsonElement("profilePictureBase64")]
+    [BsonIgnoreIfNull]
+    public string ProfilePictureBase64 { get; set; } = string.Empty;
+
+    // O campo antigo, para ler dados legados. Será ignorado ao guardar.
     [BsonElement("profilePictureUrl")]
+    [BsonIgnoreIfNull]
+    [BsonIgnoreIfDefault]
     public string ProfilePictureUrl { get; set; } = string.Empty;
 
     [BsonElement("favoriteKillers")]

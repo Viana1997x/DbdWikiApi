@@ -47,6 +47,20 @@ public class UserService
         var user = await GetByUsernameAsync(dto.Username);
         if (user == null || !user.IsActive) return (false, "Usuário ou senha inválidos.");
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)) return (false, "Usuário ou senha inválidos.");
+
+        // --- LÓGICA DE MIGRAÇÃO AUTOMÁTICA ---
+        // Se o utilizador ainda tiver o campo antigo (Url) preenchido...
+        if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+        {
+            // Copia o valor para o novo campo (Base64)
+            user.ProfilePictureBase64 = user.ProfilePictureUrl;
+            // Limpa o campo antigo para que esta migração só ocorra uma vez
+            user.ProfilePictureUrl = string.Empty;
+
+            // Guarda a versão atualizada do utilizador na base de dados
+            await _usersCollection.ReplaceOneAsync(u => u.Id == user.Id, user);
+        }
+
         return (true, GenerateJwtToken(user));
     }
 
@@ -98,15 +112,18 @@ public class UserService
         return (true, "Biografia atualizada com sucesso.");
     }
 
-    public async Task<(bool Success, string Message)> UpdateProfilePictureAsync(string userId, string newUrl)
+    // Dentro da classe UserService, encontre e substitua esta função:
+    public async Task<(bool Success, string Message)> UpdateProfilePictureAsync(string userId, string newPictureBase64)
     {
         var user = await GetByIdAsync(userId);
         if (user == null) return (false, "Usuário não encontrado.");
-        user.ProfilePictureUrl = newUrl;
+
+        // Salva a string Base64 diretamente
+        user.ProfilePictureBase64 = newPictureBase64;
+
         await _usersCollection.ReplaceOneAsync(u => u.Id == userId, user);
         return (true, "Imagem de perfil atualizada com sucesso.");
     }
-
     public async Task<(bool Success, string Message)> DeactivateUserAsync(string id)
     {
         var user = await GetByIdAsync(id);

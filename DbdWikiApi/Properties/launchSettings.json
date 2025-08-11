@@ -17,7 +17,8 @@
       "applicationUrl": "http://localhost:5298",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "watch": false
     },
     "https": {
       "commandName": "Project",
@@ -27,7 +28,8 @@
       "applicationUrl": "https://localhost:7093;http://localhost:5298",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "watch": false
     },
     "IIS Express": {
       "commandName": "IISExpress",
@@ -35,7 +37,8 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "watch": false
     }
   }
 }
