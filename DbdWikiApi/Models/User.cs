@@ -30,7 +30,25 @@ public class User
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Construtor para definir valores padrão
+    // --- NOVOS CAMPOS PARA O PERFIL ---
+    [BsonElement("bio")]
+    public string Bio { get; set; } = string.Empty;
+
+    [BsonElement("profilePictureUrl")]
+    public string ProfilePictureUrl { get; set; } = string.Empty;
+
+    [BsonElement("favoriteKillers")]
+    public List<CharacterBuild> FavoriteKillers { get; set; } = new List<CharacterBuild>();
+
+    [BsonElement("favoriteSurvivors")]
+    public List<CharacterBuild> FavoriteSurvivors { get; set; } = new List<CharacterBuild>();
+
+    [BsonElement("ratings")]
+    public List<ProfileRating> Ratings { get; set; } = new List<ProfileRating>();
+
+    [BsonElement("comments")]
+    public List<ProfileComment> Comments { get; set; } = new List<ProfileComment>();
+
     public User()
     {
         Role = "user";

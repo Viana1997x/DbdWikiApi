@@ -18,8 +18,6 @@ public class UsersController : ControllerBase
         _userService = userService;
     }
 
-    // --- ROTAS PÚBLICAS ---
-
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserDto dto)
     {
@@ -32,125 +30,142 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         var (success, tokenOrMessage) = await _userService.LoginAsync(dto);
-        if (!success) return Unauthorized(new { Message = tokenOrMessage }); // 401 Unauthorized
+        if (!success) return Unauthorized(new { Message = tokenOrMessage });
         return Ok(new { Token = tokenOrMessage });
     }
 
-    // --- ROTAS PROTEGIDAS (precisam de token JWT) ---
-
-    /// <summary>
-    /// Busca um usuário pelo seu ID. Requer autenticação.
-    /// </summary>
-    [HttpGet("id/{id:length(24)}")]
+    [HttpGet("me")]
     [Authorize]
-    public async Task<IActionResult> GetById(string id)
+    public async Task<IActionResult> GetMyProfile()
     {
-        var user = await _userService.GetByIdAsync(id);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var user = await _userService.GetByIdAsync(userId);
         if (user == null) return NotFound();
 
-        var response = new UserResponseDto // Usando o DTO de resposta
+        var response = new UserProfileResponseDto
         {
             Id = user.Id!,
             Username = user.Username,
             DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role,
-            IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            Bio = user.Bio,
+            ProfilePictureUrl = user.ProfilePictureUrl,
+            FavoriteKillers = user.FavoriteKillers,
+            FavoriteSurvivors = user.FavoriteSurvivors,
+            Comments = user.Comments
         };
-
         return Ok(response);
     }
 
-    /// <summary>
-    /// Busca um usuário pelo seu nome de usuário (username). Requer autenticação.
-    /// </summary>
-    [HttpGet("username/{username}")]
-    [Authorize] // Protege a rota, só usuários logados podem buscar outros usuários
-    public async Task<IActionResult> GetByUsername(string username)
-    {
-        var user = await _userService.GetByUsernameAsync(username);
-        if (user == null)
-        {
-            return NotFound(new { Message = "Usuário não encontrado." });
-        }
-
-        // Mapeia para o DTO seguro antes de retornar
-        var response = new UserResponseDto
-        {
-            Id = user.Id!,
-            Username = user.Username,
-            DisplayName = user.DisplayName,
-            Email = user.Email,
-            Role = user.Role,
-            IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
-        };
-
-        return Ok(response);
-    }
-
-    // Outros GETs por username/email podem ser feitos de forma similar...
-
-    /// <summary>
-    /// Atualiza o nome de exibição do próprio usuário logado.
-    /// </summary>
     [HttpPut("me/displayname")]
     [Authorize]
     public async Task<IActionResult> UpdateDisplayName([FromBody] UpdateDisplayNameDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
-
         var (success, message) = await _userService.UpdateDisplayNameAsync(userId, dto.NomeDeUsuario);
         if (!success) return BadRequest(new { Message = message });
-
         return Ok(new { Message = message });
     }
 
-    /// <summary>
-    /// Atualiza o e-mail do próprio usuário logado.
-    /// </summary>
     [HttpPut("me/email")]
     [Authorize]
     public async Task<IActionResult> UpdateEmail([FromBody] UpdateEmailDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
-
         var (success, message) = await _userService.UpdateEmailAsync(userId, dto.Email);
         if (!success) return BadRequest(new { Message = message });
-
         return Ok(new { Message = message });
     }
 
-    /// <summary>
-    /// Atualiza a senha do próprio usuário logado.
-    /// </summary>nao 
     [HttpPut("me/password")]
     [Authorize]
     public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
-
         var (success, message) = await _userService.UpdatePasswordAsync(userId, dto.SenhaAtual, dto.NovaSenha);
         if (!success) return BadRequest(new { Message = message });
-
         return Ok(new { Message = message });
     }
 
-    /// <summary>
-    /// Desativa a conta do próprio usuário logado (Soft Delete).
-    /// </summary>
+    [HttpPut("me/bio")]
+    [Authorize]
+    public async Task<IActionResult> UpdateBio([FromBody] UpdateBioDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        var (success, message) = await _userService.UpdateBioAsync(userId, dto.Bio);
+        if (!success) return BadRequest(new { Message = message });
+        return Ok(new { Message = message });
+    }
+
+    [HttpPut("me/profile-picture")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfilePicture([FromBody] UpdateProfilePictureDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        var (success, message) = await _userService.UpdateProfilePictureAsync(userId, dto.Url);
+        if (!success) return BadRequest(new { Message = message });
+        return Ok(new { Message = message });
+    }
+
     [HttpDelete("me")]
     [Authorize]
     public async Task<IActionResult> DeleteCurrentUser()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
-
         var (success, message) = await _userService.DeactivateUserAsync(userId);
+        if (!success) return BadRequest(new { Message = message });
+        return Ok(new { Message = message });
+    }
+
+    // Endpoint para upload de foto de perfil
+    [HttpPost("me/profile-picture")]
+    [Authorize]
+    public async Task<IActionResult> UploadProfilePicture(IFormFile file)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        if (file == null || file.Length == 0) return BadRequest("Nenhum arquivo enviado.");
+        if (file.Length > 9 * 1024 * 1024) return BadRequest("O arquivo excede o tamanho máximo de 9MB.");
+
+        var uploadsFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "profiles");
+        if (!Directory.Exists(uploadsFolderPath)) Directory.CreateDirectory(uploadsFolderPath);
+
+        var fileName = $"{userId}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var filePath = Path.Combine(uploadsFolderPath, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var fileUrl = $"{Request.Scheme}://{Request.Host}/images/profiles/{fileName}";
+
+        var (success, message) = await _userService.UpdateProfilePictureAsync(userId, fileUrl);
+        if (!success) return BadRequest(new { Message = message });
+
+        return Ok(new { Message = message, Url = fileUrl });
+    }
+
+    // Endpoint para atualizar os favoritos
+    [HttpPut("me/favorites")]
+    [Authorize]
+    public async Task<IActionResult> UpdateFavorites([FromBody] UpdateFavoritesDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var (success, message) = await _userService.UpdateFavoritesAsync(userId, dto.FavoriteKillers, dto.FavoriteSurvivors);
         if (!success) return BadRequest(new { Message = message });
 
         return Ok(new { Message = message });

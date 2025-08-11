@@ -14,17 +14,29 @@ builder.Services.Configure<DbdWikiDatabaseSettings>(
 builder.Services.AddSingleton<DbdWikiService>();
 builder.Services.AddScoped<UserService>();
 
+// Serviço de CORS
+var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: myAllowSpecificOrigins,
+                      policy =>
+                      {
+                          policy.AllowAnyOrigin()
+                                .AllowAnyHeader()
+                                .AllowAnyMethod();
+                      });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- CONFIGURAÇÃO DO JWT E SWAGGER ---
-// 1. Adicionar o serviço de Autenticação
+// Configuração do JWT e Swagger (sem alterações)
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options => // 2. Configurar o validador do Token JWT
+.AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -38,8 +50,6 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-
-// 3. Configurar o Swagger para usar Autenticação JWT
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -48,8 +58,6 @@ builder.Services.AddSwaggerGen(options =>
         Title = "Dead by Daylight Wiki API",
         Description = "Uma API para consultar informações e gerenciar usuários.",
     });
-
-    // Adiciona o cadeado de "Authorize" no Swagger UI
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -58,7 +66,6 @@ builder.Services.AddSwaggerGen(options =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     options.AddSecurityRequirement(new OpenApiSecurityRequirement()
     {
         {
@@ -69,11 +76,9 @@ builder.Services.AddSwaggerGen(options =>
             new string[] {}
         }
     });
-
     var xmlFilename = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
 });
-
 
 var app = builder.Build();
 
@@ -83,13 +88,27 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// --- ORDEM DO PIPELINE CORRIGIDA E ROBUSTA ---
+
+// 1. Redireciona para HTTPS
 app.UseHttpsRedirection();
 
-// 4. Adicionar o middleware de Autenticação e Autorização na pipeline
-// A ORDEM É IMPORTANTE!
+// --- ADICIONE ESTA LINHA ---
+// Habilita o uso de arquivos estáticos, como imagens salvas na pasta wwwroot
+app.UseStaticFiles();
+// -------------------------
+
+// 2. ADICIONADO: Garante que a rota seja identificada
+app.UseRouting();
+
+// 3. Aplica a política de CORS
+app.UseCors(myAllowSpecificOrigins);
+
+// 4. Aplica autenticação e autorização
 app.UseAuthentication();
 app.UseAuthorization();
 
+// 5. Mapeia os controllers para os endpoints
 app.MapControllers();
 
 app.Run();
